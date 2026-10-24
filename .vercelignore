@@ -1,0 +1,13 @@
+.venv/
+**/__pycache__/
+*.pyc
+*.bak
+*.backup
+*.DS_Store
+**/.DS_Store
+test_*.py
+app.py
+README*
+sample_qa.md
+update_sources.py
+requirements-local.txt
