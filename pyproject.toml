@@ -1,3 +1,10 @@
+[project]
+name = "groww-mf-facts"
+version = "1.0.0"
+dependencies = [
+    "pypdf>=6.0",
+    "scikit-learn>=1.5",
+]
 
 [tool.vercel]
 entrypoint = "api.ask:handler"
