@@ -1,10 +1,9 @@
+
 [project]
 name = "groww-mf-facts"
 version = "1.0.0"
 dependencies = [
     "pypdf>=6.0",
     "scikit-learn>=1.5",
+    "fastapi",
 ]
-
-[tool.vercel]
-entrypoint = "api.ask:handler"

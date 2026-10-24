@@ -1,9 +1,16 @@
+
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "functions": {
-    "api/ask.py": {
+    "api/index.py": {
       "maxDuration": 120,
-      "includeFiles": "{data/documents/**,sources.json,sources.csv,api.py,retrieval.py}"
+      "includeFiles": "{data/documents/**,sources.json,sources.csv,retrieval.py,api.py}"
     }
-  }
+  },
+  "rewrites": [
+    {
+      "source": "/",
+      "destination": "/index.html"
+    }
+  ]
 }
