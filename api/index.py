@@ -1,14 +1,22 @@
 
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
+from pathlib import Path
 
 from api import answer_question
 
 app = FastAPI()
+PROJECT_DIR = Path(__file__).resolve().parent.parent
 
 
 class QuestionRequest(BaseModel):
     question: str
+
+
+@app.get("/")
+def home():
+    return FileResponse(PROJECT_DIR / "index.html")
 
 
 @app.get("/api/health")
