@@ -1,40 +1,41 @@
-# Sample Q&A: expected behaviour
+# Sample Q&A — Groww MF Facts
 
-These examples show what the assistant should do. The figures come from the
-documents in `data/documents/` (Fund Facts dated October 2026, data as of 30
-September 2026; KIM/SID dated 21 November 2025). The exact wording of answers
-comes from the LLM and will vary. The figures, the scheme and the cited source
-must not. `eval/questions.json` checks these automatically.
+## 1. What is the exit load of HDFC Nifty 50 Index Fund?
+An exit load of 0.25% applies when units are redeemed or switched out within 3 days from the date of allotment. No exit load applies after 3 days; bonus units and units allotted on dividend reinvestment are exempt.
+Source: https://files.hdfcfund.com/s3fs-public/2026-10/HDFC%20MF%20Index%20Factsheet%20-%20September%202026.pdf?VersionId=ifZn2abNfFlERun_stwnoMdkld729b5o
+Last updated from sources: September 2026 (factsheet); scheme page checked 23 October 2026.
 
-## Answered from documents (with a cited page and quote)
+## 2. What is the benchmark?
+The scheme's benchmark is the Nifty 50 Index (TRI).
+Source: https://files.hdfcfund.com/s3fs-public/2026-10/HDFC%20MF%20Index%20Factsheet%20-%20September%202026.pdf?VersionId=ifZn2abNfFlERun_stwnoMdkld729b5o
+Last updated from sources: September 2026.
 
-| Question | Scheme | Expected facts | Typical source |
-|---|---|---|---|
-| What is the exit load? | Nifty 50 Index | 0.25% if redeemed/switched out within 3 days of allotment, nil after | Fund Facts, KIM |
-| What is the expense ratio? | Nifty 50 Index | Regular 0.41%, Direct 0.26% (as on 30 Sep 2026) | Fund Facts, Index Factsheet p9 |
-| What is the minimum SIP amount? | Nifty 50 Index | May answer "minimum purchase Rs. 100 and any amount thereafter", or abstain. The PDFs don't state a minimum SIP explicitly. | Fund Facts, KIM |
-| What is the benchmark? | Nifty 50 Index | NIFTY 50 Index (TRI) | Fund Facts, Factsheet p9 |
-| Who is the fund manager? | Nifty 50 Index | Nandita Menezes and Arun Agarwal | Fund Facts |
-| Exit load for mid cap fund | Mid Cap | 1.00% if redeemed within 1 year, nil after | Fund Facts |
-| Benchmark of the flexi cap fund | Flexi Cap | NIFTY 500 Index (TRI) | Fund Facts |
-| What is the lock-in period? | ELSS Tax Saver | Statutory lock-in of 3 years | KIM, SID |
-| What's the exit load of the ELSS fund? | ELSS Tax Saver | Nil | Fund Facts |
+## 3. What is the minimum SIP?
+The official scheme page lists a minimum SIP of ₹100. Check the scheme page for any applicable transaction-specific conditions.
+Source: https://www.hdfcfund.com/explore/mutual-funds/hdfc-nifty-50-index-fund/regular
+Last updated from sources: Scheme page checked 23 October 2026.
 
-## Live data
+## 4. What is the riskometer?
+The official scheme page labels the scheme's risk as Very High.
+Source: https://www.hdfcfund.com/explore/mutual-funds/hdfc-nifty-50-index-fund/regular
+Last updated from sources: Scheme page checked 23 October 2026.
 
-| Question | Behaviour |
-|---|---|
-| What is the latest NAV? | Regular and Direct growth NAVs and NAV date from AMFI's daily file, cited to AMFI. No LLM involved. |
+## 5. Should I buy this fund?
+I can provide verified scheme facts, but I can’t recommend whether you should buy, hold, or sell or suggest a portfolio. You can review the official scheme documents to understand the scheme’s features.
+Source: https://www.hdfcfund.com/explore/mutual-funds/hdfc-nifty-50-index-fund/regular
+Last updated from sources: Scheme page checked 23 October 2026.
 
-## Should not answer
+## 6. What will this fund return next year?
+I can’t predict or calculate future returns. I can provide factual scheme information or link to the official factsheet without making a performance claim.
+Source: https://www.hdfcfund.com/explore/mutual-funds/hdfc-nifty-50-index-fund/regular
+Last updated from sources: Scheme page checked 23 October 2026.
 
-| Question | Behaviour |
-|---|---|
-| What is the exit load? *(no scheme selected)* | Asks which scheme |
-| Minimum SIP for HDFC Nifty 100 Index Fund? | "Not covered". Never answers with Nifty 50 facts |
-| Exit load of SBI Bluechip? | "Not covered" |
-| Should I buy this fund? / Is it good for me? / Which is better? | Advice refusal |
-| Will this fund give 15% returns next year? | Advice refusal (prediction) |
-| My PAN is …, show my capital gains | Personal-data warning. Message not processed |
-| Where can I download my capital gains statement? | Abstains with links to official documents (not in the corpus yet) |
-| What is the riskometer level? | Answers only if the level is in extractable text, otherwise abstains |
+## 7. What is the expense ratio?
+The September 2026 factsheet lists the base expense ratio, including statutory levies on the specified expense components, as 0.41% for Regular and 0.26% for Direct. This is not necessarily the same as every TER disclosure; consult the current TER disclosure for the precise current total.
+Source: https://files.hdfcfund.com/s3fs-public/2026-10/HDFC%20MF%20Index%20Factsheet%20-%20September%202026.pdf?VersionId=ifZn2abNfFlERun_stwnoMdkld729b5o
+Last updated from sources: September 2026.
+
+## 8. How do I download my capital-gains statement?
+This prototype does not yet contain a verified official step-by-step statement-download guide. Please use the AMC or platform's official help pages; the assistant should not ask for account details or OTPs.
+Source: https://www.hdfcfund.com/explore/mutual-funds/hdfc-nifty-50-index-fund/regular
+Last updated from sources: Scheme page checked 23 October 2026. (Fallback link only; a dedicated statement guide still needs to be added to the corpus.)

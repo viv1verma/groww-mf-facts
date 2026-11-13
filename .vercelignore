@@ -5,14 +5,9 @@
 *.backup
 *.DS_Store
 **/.DS_Store
-.env
-.env.*
 test_*.py
-tests/
-eval/
+app.py
 README*
 sample_qa.md
 update_sources.py
-build_index.py
-# The app reads data/index/chunks.json; the PDFs are only needed to rebuild it.
-data/documents/
+requirements-local.txt

@@ -1,4 +1,4 @@
+
+pypdf>=6.0
 scikit-learn>=1.5
 fastapi
-pypdf>=6.0
-certifi

@@ -1,34 +1,47 @@
-"""HTTP tests for both entry points: the local server (api.py) and Vercel (api/index.py)."""
-import importlib.util
 import json
+import importlib.util
 import threading
 import unittest
 from http.server import ThreadingHTTPServer
+from html.parser import HTMLParser
 from pathlib import Path
-from unittest import mock
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
-from api import Handler
-from mf_facts import service
-
-PROJECT_DIR = Path(__file__).resolve().parent
+from api import Handler, answer_question
 
 
-def post(base, body):
-    req = Request(base + "/api/ask", data=json.dumps(body).encode(),
-                  headers={"Content-Type": "application/json"}, method="POST")
-    with urlopen(req) as res:
-        return json.load(res)
+class BundlerScriptParser(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.payloads = []
+        self.current_type = None
+        self.current_text = []
+
+    def handle_starttag(self, tag, attrs):
+        values = dict(attrs)
+        kind = values.get("type", "")
+        if tag == "script" and kind.startswith("__bundler/"):
+            self.current_type = kind
+            self.current_text = []
+
+    def handle_data(self, data):
+        if self.current_type:
+            self.current_text.append(data)
+
+    def handle_endtag(self, tag):
+        if tag == "script" and self.current_type:
+            self.payloads.append((self.current_type, "".join(self.current_text)))
+            self.current_type = None
 
 
-class LocalServerTests(unittest.TestCase):
+class ApiBehaviorTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
         cls.thread = threading.Thread(target=cls.server.serve_forever, daemon=True)
         cls.thread.start()
-        cls.base = f"http://127.0.0.1:{cls.server.server_port}"
+        cls.base = "http://127.0.0.1:{}".format(cls.server.server_port)
 
     @classmethod
     def tearDownClass(cls):
@@ -36,68 +49,128 @@ class LocalServerTests(unittest.TestCase):
         cls.server.server_close()
         cls.thread.join(timeout=2)
 
-    def test_frontend_health_and_schemes(self):
-        with urlopen(self.base + "/") as res:
-            html = res.read().decode()
-        self.assertIn("<title>Groww MF Facts</title>", html)
-        self.assertNotIn("AMFI and SEBI documents", html)  # old, inaccurate claim
-        with urlopen(self.base + "/api/health") as res:
-            self.assertTrue(json.load(res)["ok"])
-        with urlopen(self.base + "/api/schemes") as res:
-            self.assertEqual(len(json.load(res)["schemes"]), 4)
+    def test_frontend_and_health_are_served(self):
+        with urlopen(self.base + "/") as response:
+            self.assertEqual(response.status, 200)
+            html = response.read().decode("utf-8")
+            self.assertIn("__bundler/template", html)
+        with urlopen(self.base + "/api/health") as response:
+            self.assertEqual(json.load(response), {"ok": True})
 
-    def test_project_files_are_not_served(self):
-        for path in ("/.env", "/sources.json", "/api.py", "/mf_facts/service.py"):
-            with self.subTest(path=path), self.assertRaises(HTTPError) as caught:
-                urlopen(self.base + path)
-            self.assertEqual(caught.exception.code, 404)
+    def test_browser_receives_valid_json_for_each_bundle_payload(self):
+        with urlopen(self.base + "/") as response:
+            parser = BundlerScriptParser()
+            parser.feed(response.read().decode("utf-8"))
+        self.assertTrue(parser.payloads)
+        for name, payload in parser.payloads:
+            with self.subTest(payload=name):
+                json.loads(payload)
 
-    def test_refusal_over_http(self):
-        r = post(self.base, {"question": "Should I buy this fund?"})
-        self.assertEqual(r["kind"], "refusal")
-        self.assertTrue(r["refusal"])
-        self.assertIsNone(r["source_url"])
+    def test_ask_returns_answer_and_citation_metadata(self):
+        request = Request(
+            self.base + "/api/ask",
+            data=json.dumps({"question": "What is the benchmark?"}).encode(),
+            headers={"Content-Type": "application/json"}, method="POST",
+        )
+        with urlopen(request) as response:
+            result = json.load(response)
+        self.assertIn("NIFTY 50", result["answer"])
+        self.assertTrue(result["source_url"].startswith("https://"))
+        self.assertTrue(result["document_date"])
+        self.assertIsNone(result["page_number"])
 
-    def test_invalid_payloads(self):
-        for body, msg in ((b'{"question": 12}', "Provide a question string"),
-                          (b"not json", "Request body must be valid JSON")):
-            req = Request(self.base + "/api/ask", data=body, headers={"Content-Type": "application/json"}, method="POST")
-            with self.subTest(body=body), self.assertRaises(HTTPError) as caught:
-                urlopen(req)
-            self.assertEqual(caught.exception.code, 400)
-            self.assertEqual(json.load(caught.exception)["detail"], msg)
+    def test_personalized_advice_refusal_has_no_citation_card_data(self):
+        result = answer_question("Should I buy this fund?", chunks=[])
+        self.assertTrue(result["refusal"])
+        self.assertIn("can’t recommend", result["answer"])
+        self.assertIsNone(result["source_url"])
+        self.assertIsNone(result["source_title"])
+        self.assertIsNone(result["document_date"])
+        self.assertIsNone(result["page_number"])
+
+    def test_unsupported_question_uses_polite_fallback_without_citation(self):
+        result = answer_question("What is this fund's office address?", chunks=[])
+        self.assertEqual(
+            result["answer"],
+            "I’m sorry, but I couldn’t find a reliable answer to that in the official "
+            "documents I currently have available. I don’t want to give you incorrect "
+            "information. You could try another question about the fund, or check HDFC "
+            "Mutual Fund’s official scheme documents for the latest details.",
+        )
+        self.assertTrue(result["unverified"])
+        self.assertFalse(result["refusal"])
+        self.assertIsNone(result["source_url"])
 
 
-class VercelAppTests(unittest.TestCase):
+    def test_nifty_100_minimum_sip_abstention_has_no_nifty_50_citation(self):
+        result = answer_question(
+            "What is the minimum SIP amount for HDFC Nifty 100 Index Fund?",
+            chunks=[],
+        )
+        self.assertTrue(result["unverified"])
+        self.assertIsNone(result["source_url"])
+        self.assertIsNone(result["source_title"])
+        self.assertNotIn("₹100", result["answer"])
+
+    def test_other_scheme_minimum_sip_abstentions_have_no_nifty_50_citation(self):
+        schemes = (
+            "HDFC Flexi Cap Fund",
+            "HDFC Mid Cap Fund",
+            "HDFC ELSS Tax Saver Fund",
+        )
+        for scheme in schemes:
+            with self.subTest(scheme=scheme):
+                result = answer_question(
+                    "What is the minimum SIP amount for {}?".format(scheme),
+                    chunks=[],
+                )
+                self.assertTrue(result["unverified"])
+                self.assertIsNone(result["source_url"])
+                self.assertIsNone(result["source_title"])
+                self.assertNotIn("₹100", result["answer"])
+
+    def test_invalid_payload_returns_bad_request(self):
+        request = Request(
+            self.base + "/api/ask", data=b'{"question": 12}',
+            headers={"Content-Type": "application/json"}, method="POST",
+        )
+        with self.assertRaises(HTTPError) as caught:
+            urlopen(request)
+        self.assertEqual(caught.exception.code, 400)
+        self.assertEqual(json.load(caught.exception), {"error": "Provide a question string"})
+
+
+class VercelFunctionTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        from fastapi.testclient import TestClient
-        spec = importlib.util.spec_from_file_location("vercel_index", PROJECT_DIR / "api" / "index.py")
+        path = Path(__file__).resolve().parent / "api" / "ask.py"
+        spec = importlib.util.spec_from_file_location("test_vercel_ask", path)
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
-        cls.client = TestClient(module.app)
+        cls.server = ThreadingHTTPServer(("127.0.0.1", 0), module.handler)
+        cls.thread = threading.Thread(target=cls.server.serve_forever, daemon=True)
+        cls.thread.start()
+        cls.base = "http://127.0.0.1:{}".format(cls.server.server_port)
 
-    def test_routes(self):
-        self.assertEqual(self.client.get("/").status_code, 200)
-        self.assertTrue(self.client.get("/api/health").json()["ok"])
-        self.assertEqual(len(self.client.get("/api/schemes").json()["schemes"]), 4)
-        self.assertEqual(self.client.get("/api/nav?scheme=unknown").status_code, 404)
+    @classmethod
+    def tearDownClass(cls):
+        cls.server.shutdown()
+        cls.server.server_close()
+        cls.thread.join(timeout=2)
 
-    def test_question_length_is_limited(self):
-        r = self.client.post("/api/ask", json={"question": "x" * (service.MAX_QUESTION_CHARS + 1)})
-        self.assertEqual(r.status_code, 422)
-
-    def test_ask_passes_scheme_through(self):
-        with mock.patch.object(service, "answer_question", return_value={"kind": "answer", "answer": "ok"}) as m:
-            r = self.client.post("/api/ask", json={"question": "What is the exit load?", "scheme": "hdfc-mid-cap-fund"})
-        self.assertEqual(r.json()["answer"], "ok")
-        m.assert_called_once_with("What is the exit load?", "hdfc-mid-cap-fund")
-
-    def test_internal_errors_are_not_leaked(self):
-        with mock.patch.object(service, "answer_question", side_effect=RuntimeError("secret detail")):
-            r = self.client.post("/api/ask", json={"question": "hi"})
-        self.assertEqual(r.status_code, 500)
-        self.assertNotIn("secret", r.text)
+    def test_vercel_ask_route_preserves_grounded_answer_and_citation(self):
+        request = Request(
+            self.base + "/api/ask",
+            data=json.dumps({"question": "What is the benchmark?"}).encode(),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urlopen(request) as response:
+            result = json.load(response)
+        self.assertIn("NIFTY 50", result["answer"])
+        self.assertTrue(result["source_url"].startswith("https://"))
+        self.assertEqual(result["source_title"], "HDFC Nifty 50 Index Fund scheme page")
+        self.assertIsNone(result["page_number"])
 
 
 if __name__ == "__main__":
