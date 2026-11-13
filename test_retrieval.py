@@ -1,99 +1,58 @@
+"""Retrieval tests: the right passages reach the LLM for each scheme.
+
+If one of these fails after you replace a document, look at the passages
+returned for that question and adjust QUERY_EXPANSIONS or the chunking in
+mf_facts/index_store.py.
+"""
+import re
 import unittest
 
-from retrieval import answer_question, load_catalog_source, load_pdf_chunks, load_sources
+from mf_facts.index_store import get_index, load_chunks
+from mf_facts.schemes import SCHEMES
+
+# question → a pattern the supporting passage must contain
+CORE_QUESTIONS = {
+    "What is the exit load?": r"exit load",
+    "What is the expense ratio?": r"\d\.\d+ ?%",
+    "What is the minimum SIP amount?": r"(?:Rs\.?|₹|INR) ?\d+",
+    "What is the benchmark?": r"\bTRI\b",
+    "What is the investment objective?": r"investment objective",
+}
 
 
-class RetrievalAnswerTests(unittest.TestCase):
+class IndexTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.chunks = load_pdf_chunks()
+        cls.index = get_index()
 
-    def test_benchmark_has_official_source(self):
-        answer = answer_question("What is the benchmark for HDFC Nifty 50 Index Fund?", self.chunks)
-        self.assertIsNotNone(answer)
-        self.assertIn("NIFTY 50", answer["answer"])
-        self.assertIn("hdfcfund.com", answer["source_url"])
-        self.assertIsNone(answer["page_number"])
+    def test_every_chunk_has_official_source_metadata(self):
+        for c in load_chunks():
+            self.assertTrue(c.source_url.startswith("https://"), c.id)
+            self.assertGreater(c.page_number, 0)
+            self.assertIn(c.scheme_id, SCHEMES)
 
-    def test_expense_ratio_names_plan_figures_and_pdf_page(self):
-        answer = answer_question("What is the expense ratio?", self.chunks)
-        self.assertIsNotNone(answer)
-        self.assertIn("0.41%", answer["answer"])
-        self.assertIn("0.26%", answer["answer"])
-        self.assertEqual(answer["page_number"], 9)
-        self.assertIn("September 2026", answer["document_date"])
+    def test_multi_scheme_factsheet_only_contributes_its_scheme_pages(self):
+        pages = {c.page_number for c in self.index.chunks if c.doc_type == "factsheet"}
+        self.assertEqual(pages, {9, 10})
 
-    def test_minimum_sip_uses_scheme_page_evidence(self):
-        answer = answer_question("What is the minimum SIP amount?", self.chunks)
-        source = load_catalog_source("HDFC Nifty 50 Index Fund scheme page")
-        self.assertIsNotNone(answer)
-        self.assertIn("₹100", answer["answer"])
-        self.assertIn("Min SIP ₹100", answer["evidence"])
-        self.assertEqual(answer["source_url"], source["url"])
-        self.assertEqual(answer["source_title"], source["title"])
-        self.assertEqual(answer["document_date"], source["document_or_check_date"])
-        self.assertIsNone(answer["page_number"])
+    def test_search_never_returns_another_schemes_passage(self):
+        for scheme in SCHEMES.values():
+            for q in CORE_QUESTIONS:
+                with self.subTest(scheme=scheme.name, q=q):
+                    results = self.index.search(q, scheme, k=6)
+                    self.assertTrue(results)
+                    self.assertTrue(all(c.scheme_id == scheme.id for c, _ in results))
 
-    def test_minimum_sip_nifty_100_abstains_without_nifty_50_citation(self):
-        answer = answer_question(
-            "What is the minimum SIP amount for HDFC Nifty 100 Index Fund?",
-            self.chunks,
-        )
-        self.assertIsNone(answer)
+    def test_supporting_passage_is_in_top_six(self):
+        for scheme in SCHEMES.values():
+            for q, pattern in CORE_QUESTIONS.items():
+                with self.subTest(scheme=scheme.name, q=q):
+                    texts = [c.text for c, _ in self.index.search(q, scheme, k=6)]
+                    self.assertTrue(any(re.search(pattern, t) for t in texts))
 
-    def test_unsupported_scheme_minimum_sip_questions_abstain(self):
-        questions = [
-            "What is the minimum SIP amount for HDFC Flexi Cap Fund?",
-            "What is the minimum SIP amount for HDFC Mid Cap Fund?",
-            "What is the minimum SIP amount for HDFC ELSS Tax Saver Fund?",
-        ]
-        for question in questions:
-            with self.subTest(question=question):
-                self.assertIsNone(answer_question(question, self.chunks))
-
-    def test_other_hardcoded_nifty_50_facts_do_not_cross_schemes(self):
-        questions = [
-            "What is the benchmark for HDFC Nifty 100 Index Fund?",
-            "What is the expense ratio for HDFC Nifty 100 Index Fund?",
-            "What is the exit load for HDFC Nifty 100 Index Fund?",
-            "What is the riskometer for HDFC Nifty 100 Index Fund?",
-        ]
-        for question in questions:
-            with self.subTest(question=question):
-                self.assertIsNone(answer_question(question, self.chunks))
-
-    def test_pdf_citations_match_metadata_and_supporting_pages(self):
-        sources = load_sources()
-        for question in (
-            "What is the expense ratio?",
-            "What is the exit load of HDFC Nifty 50 Index Fund?",
-        ):
-            with self.subTest(question=question):
-                answer = answer_question(question, self.chunks)
-                source = sources["HDFC MF Index Factsheet - September 2026.pdf"]
-                self.assertEqual(answer["source_url"], source["source_url"])
-                self.assertEqual(answer["source_title"], source["source_title"])
-                self.assertEqual(answer["document_date"], source["document_date"])
-                self.assertGreater(answer["page_number"], 0)
-                if "expense" in question:
-                    self.assertEqual(answer["page_number"], 9)
-                    self.assertIn("0.41%", answer["evidence"])
-                    self.assertIn("0.26%", answer["evidence"])
-                else:
-                    self.assertEqual(answer["page_number"], 9)
-                    self.assertIn("0.25", answer["evidence"])
-                    self.assertIn("3 days", answer["evidence"])
-
-    def test_exit_load_is_supported_by_loaded_pdf(self):
-        answer = answer_question("What is the exit load of HDFC Nifty 50 Index Fund?", self.chunks)
-        self.assertIsNotNone(answer)
-        self.assertIn("0.25%", answer["answer"])
-        self.assertIn("within 3 days", answer["answer"])
-        self.assertGreater(answer["page_number"], 0)
-        self.assertTrue(answer["source_url"].endswith(".pdf?VersionId=ifZn2abNfFlERun_stwnoMdkld729b5o"))
-
-    def test_unsupported_question_abstains(self):
-        self.assertIsNone(answer_question("What is the CEO's favorite color?", self.chunks))
+    def test_elss_lock_in_passage_is_retrieved(self):
+        texts = [c.text for c, _ in self.index.search("What is the lock-in period?", SCHEMES["hdfc-elss-tax-saver-fund"])]
+        self.assertTrue(any(re.search(r"lock.?in", t, re.I) for t in texts))
 
 
 if __name__ == "__main__":

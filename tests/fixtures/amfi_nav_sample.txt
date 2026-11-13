@@ -1,0 +1,16 @@
+Scheme Code;ISIN Div Payout/ ISIN Growth;ISIN Div Reinvestment;Scheme Name;Plan;Option;Net Asset Value;Date
+ 
+Open Ended Schemes(Equity Scheme - Index Funds)
+ 
+HDFC Mutual Fund
+ 
+118955;INF179K01UT0;-;HDFC Flexi Cap Fund;Direct Plan;Growth Option;2374.132;12-Nov-2026
+101762;INF179K01608;-;HDFC Flexi Cap Fund;Regular Plan;Growth Option;2153.279;12-Nov-2026
+118954;INF179K01VL5;INF179K01VM3;HDFC Flexi Cap Fund;Direct Plan;IDCW Option;95.995;12-Nov-2026
+118989;INF179K01XQ0;-;HDFC Mid Cap Fund;Direct Plan;Growth Option;230.663;12-Nov-2026
+105758;INF179K01CR2;-;HDFC Mid Cap Fund;Regular Plan;Growth Option;207.802;12-Nov-2026
+119060;INF179K01YS4;-;HDFC ELSS - Tax Saver Fund;Direct Plan;Growth Option;1555.591;12-Nov-2026
+101979;INF179K01BB8;-;HDFC ELSS - Tax Saver Fund;Regular Plan;Growth Option;1429.26;12-Nov-2026
+119063;INF179K01WM1;-;HDFC Nifty 50 Index Fund;Direct Plan;Growth Option;247.7149;12-Nov-2026
+101525;INF179K01KZ8;-;HDFC Nifty 50 Index Fund;Regular Plan;Growth Option;241.8155;12-Nov-2026
+999999;-;-;Some Other Fund;Regular Plan;Growth Option;N.A.;12-Nov-2026
