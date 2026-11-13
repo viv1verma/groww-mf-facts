@@ -368,3 +368,19 @@ class FollowUpTests(unittest.TestCase):
         self.assertTrue(r["follow_ups"])  # factual alternatives for the scheme in view
         r = service.answer_question("Exit load of SBI Bluechip?", MID, llm=FakeLLM(reply={}))
         self.assertEqual(r["follow_ups"], [])
+
+
+class LLMConfigTests(unittest.TestCase):
+    def test_key_whitespace_from_dashboard_is_trimmed(self):
+        from unittest import mock
+        from mf_facts.llm import LLMConfig
+        with mock.patch.dict("os.environ", {"LLM_PROVIDER": " gemini\n", "LLM_API_KEY": "AIzaTEST \n"}, clear=True):
+            config = LLMConfig.from_env()
+        self.assertEqual(config.api_key, "AIzaTEST")
+        self.assertEqual(config.provider, "gemini")
+
+    def test_bad_header_becomes_llm_error_not_crash(self):
+        from mf_facts.llm import ChatClient, LLMConfig
+        client = ChatClient(LLMConfig("gemini", "https://example.invalid", "m", "bad\nkey"))
+        with self.assertRaises(LLMError):
+            client.complete_json("s", "u")

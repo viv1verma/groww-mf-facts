@@ -17,6 +17,7 @@ documents, and questions containing personal data are blocked before this point.
 """
 from __future__ import annotations
 
+import http.client
 import json
 import os
 import urllib.error
@@ -69,9 +70,12 @@ class LLMConfig:
     def from_env(cls) -> "LLMConfig | None":
         provider = os.environ.get("LLM_PROVIDER", "gemini").strip().lower()
         preset = PROVIDERS.get(provider, {})
-        api_key = os.environ.get("LLM_API_KEY") or os.environ.get(preset.get("key_env", ""), "")
-        base_url = os.environ.get("LLM_BASE_URL") or preset.get("base_url", "")
-        model = os.environ.get("LLM_MODEL") or preset.get("model", "")
+        # .strip(): a key pasted into a dashboard often picks up a trailing
+        # space or newline, which makes the HTTP header invalid.
+        env = lambda name: (os.environ.get(name) or "").strip()  # noqa: E731
+        api_key = env("LLM_API_KEY") or env(preset.get("key_env", ""))
+        base_url = env("LLM_BASE_URL") or preset.get("base_url", "")
+        model = env("LLM_MODEL") or preset.get("model", "")
         if not (api_key and base_url and model):
             return None
         fallbacks = tuple(
@@ -131,6 +135,10 @@ class ChatClient:
         except (TimeoutError, urllib.error.URLError) as exc:
             if isinstance(exc, TimeoutError) or isinstance(getattr(exc, "reason", None), TimeoutError):
                 raise _Retryable("timeout") from exc
+            raise LLMError(f"LLM request failed: {type(exc).__name__}") from exc
+        except (OSError, http.client.HTTPException, ValueError) as exc:
+            # Dropped connections, invalid header values, etc. Report as
+            # "unavailable" rather than crashing the request.
             raise LLMError(f"LLM request failed: {type(exc).__name__}") from exc
         except json.JSONDecodeError as exc:
             raise LLMError("LLM returned a non-JSON HTTP body") from exc
