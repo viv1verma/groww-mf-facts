@@ -39,10 +39,19 @@ def home():
 @app.get("/api/health")
 def health():
     config = LLMConfig.from_env()
+    # Report whether the document index loads, so a deployment that is
+    # missing data/index/chunks.json (or a library) is easy to spot. Only the
+    # error type is shown, never details.
+    try:
+        from mf_facts.index_store import get_index
+        index_status = {"index_chunks": len(get_index().chunks)}
+    except Exception as exc:
+        index_status = {"index_error": type(exc).__name__}
     return {
         "ok": True,
         "llm_configured": config is not None,
         "llm_provider": config.provider if config else None,
+        **index_status,
     }
 
 
